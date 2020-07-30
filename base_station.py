@@ -18,6 +18,8 @@ blueberry = None
 muse_thread = None
 bby_thread = None
 stream = False #should we be pushing data out?
+eegSave = None
+fnirsSave = None
 
 #Blueberry glasses GATT server characteristics information
 bbxService={"name": 'fnirs service',
@@ -48,23 +50,27 @@ def signal_handler(signal, frame):
 
 #receive EEG data callback
 def getMuseData(data, timestamps):
-    pass
+    global eegSave
+    curr_time = time.time()
+    for i, e in enumerate(data[:-1]):
+        eegSave.write("{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n".format(curr_time, i, e[0], e[1],e[2], e[3],e[4], e[5],e[6], e[7],e[8], e[9],e[10], e[11]))
 
 #unpack fNIRS byte string
 def unpack_fnirs(packet):
     aa = bitstring.Bits(bytes=packet)
-    pattern = "uintbe:8,uintbe:8,intbe:32,intbe:32,intbe:32,intbe:8,intbe:8"
+    pattern = "uintbe:16,uintbe:32,uintbe:32,uintbe:32,uintbe:16"
     res = aa.unpack(pattern)
-    packet_index = res[0]
-    hemo_1 = res[2]
-    hemo_2 = res[3]
-    return packet_index, hemo_1, hemo_2
+    packet_time = res[1]
+    short_path = res[2]
+    long_path = res[3]
+    return packet_time, short_path, long_path
 
 #receive fNIRS data callback
 def receive_notify(characteristic_handle, data):
+    global fnirsSave
     if stream:
-        packet_index, hemo_1, hemo_2 = unpack_fnirs(data)
-        print("fNIRS -- Index {}: 880nm: {}, 940nm: {}".format(packet_index, hemo_1, hemo_2))
+        packet_index, short_path, long_path = unpack_fnirs(data)
+        fnirsSave.write("{},{},{},{}\n".format(time.time(),packet_index,short_path,long_path))
 
 #delegate for bluepy handling BLE connection
 class PeripheralDelegate(DefaultDelegate):
@@ -111,7 +117,7 @@ def muse_loop(device):
             break
 
 def main():
-    global myMuse, blueberry, stream, muse_thread, bby_thread
+    global myMuse, blueberry, stream, muse_thread, bby_thread,eegSave,fnirsSave
     if len(sys.argv) < 3:
         print("Usage: python3 base_station.py <Muse MAC address> <Blueberry MAC address>")
         print("MAC args not specified, exiting...")
@@ -124,7 +130,13 @@ def main():
     muse_mac = sys.argv[1]
     bby_mac = sys.argv[2]
 
-    #st
+    #files to save the data
+    fnirsSave = open("./fnirs/{}_fnirs.csv".format(time.time()), "w+")
+    fnirsSave.write("real_time,packet_time,short_path,long_path\n")
+    eegSave = open("./eeg/{}_eeg.csv".format(time.time()), "w+")
+    eegSave.write("real_time,e_num,0,1,2,3,4,5,6,7,8,9,10,11\n")
+
+    #connect Muse 1.5, 2, or S
     myMuse = muselsl.muse.Muse("{}".format(muse_mac), callback_eeg=getMuseData)
     myMuse.connect()
 
@@ -139,9 +151,9 @@ def main():
     #start listening loops for Blueberry and muse
     bby_thread = threading.Thread(target=muse_loop, args=(myMuse,))
     muse_thread = threading.Thread(target=bby_loop, args=(blueberry,))
+    stream = True #starting pushing out data stream
     bby_thread.start()
     muse_thread.start()
-    stream = True #starting pushing out data stream
 
     #block here, because we have our two threads running in the background
     while True:

@@ -1,6 +1,6 @@
 # EEG + fNIRS Bluetooth Low Energy Server
 
-Stream in both EEG and fNIRS data to the same device at the same time. The devices streaming in are [Blueberry glasses](https://blueberryx.com/) and [Muse](https://choosemuse.com/).
+Stream in both EEG and fNIRS data to the same device at the same time. The devices streaming in are [Blueberry glasses](https://blueberryx.com/) and [Muse](https://choosemuse.com/) 1.5, 2, or S.
 
 ## Support
 
@@ -15,6 +15,7 @@ live_plot.py does the same as base_station.py and also live plot the data once /
 ## Setup  
 
 ```
+mkdir fnirs eeg
 pip3 install -r requirements.txt
 cd muse-lsl
 python3 setup.py install
